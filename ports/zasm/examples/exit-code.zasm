@@ -1,0 +1,3 @@
+// The smallest program: exit with a status of your choice.
+// Check it in the "exit status" line after running.
+syscall exit(42)

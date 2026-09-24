@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraSH — shell on Linux in the browser</title>
+<link rel="stylesheet" href="xterm/xterm.css">
+<style>
+  :root { --bg:#0b0d10; --panel:#14171c; --line:#262b33; --fg:#d7dde5; --dim:#8a94a3; --acc:#9ece6a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header b { color:var(--acc); }
+  button { font:inherit; background:#1b1f26; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  .dim { color:var(--dim); }
+  main { flex:1; min-height:0; padding:8px; background:#0d0f12; }
+  #term { width:100%; height:100%; }
+  #boot { position:absolute; inset:48px 0 0 0; display:grid; place-items:center; color:var(--dim); pointer-events:none; }
+</style>
+</head>
+<body>
+<header>
+  <b>TraSH</b><span class="dim">bytecode-compiled POSIX shell · on i386 Linux + busybox inside v86 (WebAssembly)</span>
+  <span style="flex:1"></span>
+  <button id="reboot">⟲ Reboot</button>
+</header>
+<main><div id="term"></div></main>
+<div id="boot">booting Linux…</div>
+<script src="xterm/xterm.js"></script>
+<script src="xterm/addon-fit.js"></script>
+<script src="v86/libv86.js"></script>
+<script>
+  const term = new Terminal({
+    cursorBlink: true, fontSize: 14, convertEol: false, scrollback: 5000,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    theme: { background: '#0d0f12', foreground: '#d7dde5', cursor: '#9ece6a' },
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  fit.fit();
+  addEventListener('resize', () => fit.fit());
+
+  let emulator = null;
+  function boot() {
+    if (emulator) emulator.destroy();
+    term.reset();
+    document.getElementById('boot').style.display = '';
+    emulator = new V86({
+      wasm_path: 'v86/v86.wasm',
+      bios: { url: 'v86/seabios.bin' },
+      vga_bios: { url: 'v86/vgabios.bin' },
+      bzimage: { url: 'bzImage' },
+      initrd: { url: 'initramfs.cpio.gz' },
+      // Unknown key=value parameters end up in the environment of /init.
+      cmdline: `console=ttyS0 quiet tsc=reliable cols=${term.cols} rows=${term.rows}`,
+      memory_size: 128 * 1024 * 1024,
+      vga_memory_size: 2 * 1024 * 1024,
+      autostart: true,
+      disable_keyboard: true,
+      disable_mouse: true,
+      disable_speaker: true,
+    });
+    const decoder = new TextDecoder();
+    emulator.add_listener('serial0-output-byte', (b) => {
+      document.getElementById('boot').style.display = 'none';
+      term.write(decoder.decode(new Uint8Array([b]), { stream: true }));
+    });
+    term.focus();
+  }
+  term.onData((d) => emulator && emulator.serial0_send(d));
+  document.getElementById('reboot').onclick = boot;
+  boot();
+</script>
+</body>
+</html>

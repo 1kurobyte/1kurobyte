@@ -1,0 +1,6 @@
+# id	repository	ref (the project is built as-is; ports/<id>/ is overlaid as web/)
+kaname	1kurobyte/kaname-x86	master
+trash	1kurobyte/minishell	master
+cub3d	Fazejli/Cub3D	main
+fdf	1kurobyte/fdf	master
+zasm	1kurobyte/zasm	master

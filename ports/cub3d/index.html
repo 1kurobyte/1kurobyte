@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cub3D — WebAssembly</title>
+<script src="coi-serviceworker.js"></script>
+<style>
+  :root { --bg:#0b0d10; --panel:#14171c; --line:#262b33; --fg:#d7dde5; --dim:#8a94a3; --acc:#7cc4ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header b { color:var(--acc); }
+  select, button { font:inherit; background:#1b1f26; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
+  button { cursor:pointer; } button:hover { border-color:var(--acc); }
+  .dim { color:var(--dim); }
+  main { flex:1; min-height:0; display:grid; place-items:center; position:relative; }
+  canvas { max-width:100%; max-height:100%; image-rendering:auto; outline:none; background:#000; display:none; }
+  #start { text-align:center; max-width:560px; padding:24px; }
+  #drop { margin-top:14px; border:1px dashed var(--line); border-radius:10px; padding:18px; color:var(--dim); }
+  #drop.over { border-color:var(--acc); color:var(--fg); }
+  #status { position:absolute; bottom:10px; left:12px; color:var(--dim); }
+  kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; background:#1b1f26; }
+  .keys { color:var(--dim); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <b>Cub3D</b><span class="dim">multithreaded raycaster · C → WebAssembly</span>
+  <span style="flex:1"></span>
+  <span class="keys"><kbd>WASD</kbd> move · <kbd>←</kbd><kbd>→</kbd> turn · click to capture mouse · <kbd>E</kbd> doors · <kbd>Esc</kbd> quit</span>
+</header>
+<main>
+  <div id="start">
+    <p>Pick a map and step into the maze.</p>
+    <p><select id="map"></select> <button id="go">Launch ▶</button></p>
+    <div id="drop">…or drop your own <code>.cub</code> map here (textures from <code>./textures/</code>)</div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <div id="status"></div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const status = (t) => { $('status').textContent = t || ''; };
+  let custom = null;
+
+  fetch('maps.json').then((r) => r.json()).then((maps) => {
+    for (const m of maps) $('map').add(new Option(m, m));
+    $('map').value = params.get('map') || (maps.includes('basic') ? 'basic' : maps[0]);
+    if (params.has('autostart')) launch();
+  });
+
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach((t) => addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  addEventListener('drop', async (e) => {
+    const f = e.dataTransfer.files[0];
+    if (!f || window.Module) return;
+    custom = { name: f.name.replace(/[^\w.-]/g, '_'), data: new Uint8Array(await f.arrayBuffer()) };
+    launch();
+  });
+  $('go').onclick = launch;
+
+  function launch() {
+    if (window.Module) return;
+    $('start').style.display = 'none';
+    const canvas = $('canvas');
+    const path = custom ? '/maps/' + custom.name : '/maps/' + $('map').value + '.cub';
+    status('loading…');
+    window.Module = {
+      canvas,
+      print: (t) => console.log(t),
+      printErr: (t) => console.warn(t),
+      setStatus: (t) => status(t),
+      onWindow: () => { canvas.style.display = 'block'; canvas.focus(); status(''); },
+      onRuntimeInitialized() {
+        if (custom) Module.FS.writeFile(path, custom.data);
+        status('starting ' + path.split('/').pop() + '…');
+        Module.callMain([path, '-W', String(params.get('w') || 960), '-H', String(params.get('h') || 600)]);
+      },
+      onExit: (code) => status('program exited with status ' + code + ' — reload to restart'),
+    };
+    if (!crossOriginIsolated) { status('This page needs cross-origin isolation (SharedArrayBuffer); reloading…'); }
+    const s = document.createElement('script');
+    s.src = 'cub3D.js';
+    document.body.appendChild(s);
+  }
+</script>
+</body>
+</html>

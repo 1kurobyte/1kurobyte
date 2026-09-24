@@ -1,0 +1,72 @@
+{
+  "owner": "1kurobyte",
+  "github": "https://github.com/1kurobyte",
+  "tagline": "Systems programming: kernels, shells, assemblers and renderers — all running live in your browser.",
+  "apps": [
+    {
+      "id": "kaname",
+      "name": "Kaname",
+      "icon": "要",
+      "color": "#ff9e64",
+      "kind": "Kernel",
+      "summary": "A minimal x86 kernel in Zig: Multiboot2, GDT/IDT, PIC & LAPIC, PS/2 keyboard, VGA text + VBE framebuffer, serial console, ACPI shutdown, a tiny shell and a Phong-shaded 3D logo.",
+      "how": "Booted from a GRUB ISO by v86, an x86 PC emulator that JIT-compiles to WebAssembly.",
+      "tags": ["Zig", "x86", "bare metal", "Multiboot2"],
+      "repo": "https://github.com/1kurobyte/kaname-x86",
+      "src": "apps/kaname/index.html",
+      "size": [1040, 640]
+    },
+    {
+      "id": "trash",
+      "name": "TraSH",
+      "icon": "$_",
+      "color": "#9ece6a",
+      "kind": "Unix shell",
+      "summary": "A POSIX-style shell that compiles every command line ahead of time to bytecode run by a small VM: pipelines, && ||, subshells, redirections, heredocs, expansions, builtins.",
+      "how": "A real i386 Linux kernel + busybox userland booted in v86; fork, exec, pipes and signals are the kernel's own.",
+      "tags": ["C", "POSIX", "bytecode VM", "readline"],
+      "repo": "https://github.com/1kurobyte/minishell",
+      "src": "apps/trash/index.html",
+      "size": [900, 560]
+    },
+    {
+      "id": "cub3d",
+      "name": "Cub3D",
+      "icon": "▦",
+      "color": "#f7768e",
+      "kind": "Raycaster",
+      "summary": "A Wolfenstein-style raycasting engine: multithreaded renderer, fixed-timestep physics thread, lock-free triple-buffered world state, doors, minimap and a custom map format.",
+      "how": "C compiled to WebAssembly; pthreads run as Web Workers and MiniLibX is re-implemented on a canvas.",
+      "tags": ["C", "pthreads", "raycasting", "MiniLibX"],
+      "repo": "https://github.com/Fazejli/Cub3D",
+      "src": "apps/cub3d/index.html",
+      "size": [1000, 680]
+    },
+    {
+      "id": "fdf",
+      "name": "FdF",
+      "icon": "◬",
+      "color": "#7dcfff",
+      "kind": "Wireframe renderer",
+      "summary": "A software 3D renderer for height maps: 8 projections (orthographic to Panini), Bresenham and Xiaolin Wu lines, face filling, depth view and back-face culling on a thread pool.",
+      "how": "C compiled to WebAssembly with a canvas-backed MiniLibX and a multithreaded rasterizer.",
+      "tags": ["C", "3D math", "rasterization", "pthreads"],
+      "repo": "https://github.com/1kurobyte/fdf",
+      "src": "apps/fdf/index.html",
+      "size": [1080, 720]
+    },
+    {
+      "id": "zasm",
+      "name": "zasm",
+      "icon": "01",
+      "color": "#bb9af7",
+      "kind": "Assembler",
+      "summary": "A small assembler that turns a single source file into an x86-64 ELF executable, with syscalls by name and compiler-style diagnostics.",
+      "how": "The assembler runs as WebAssembly; its output is executed by a tiny x86-64 Linux sandbox written in JavaScript.",
+      "tags": ["C", "x86-64", "ELF", "codegen"],
+      "repo": "https://github.com/1kurobyte/zasm",
+      "src": "apps/zasm/index.html",
+      "size": [1100, 640]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+// Hello, world! -- pushstr builds the string on the stack,
+// so rsp points at it when write() runs.
+pushstr "Hello, world!"
+syscall write(1, rsp, 13)
+syscall exit(0)

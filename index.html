@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>~/projects — live systems portfolio</title>
+<meta name="description" content="A kernel, a shell, an assembler and two renderers, compiled to WebAssembly and running in your browser.">
+<script src="coi-serviceworker.js"></script>
+<link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+<div id="boot" aria-hidden="true"><pre id="bootlog"></pre><div class="hint">click or press any key to skip</div></div>
+
+<div id="session">
+  <header id="bar">
+    <div class="mod left">
+      <button id="launcher-btn" class="chip brand" title="App launcher (Alt+D)"><span class="logo"></span> <span id="owner"></span></button>
+      <nav id="workspaces" aria-label="Workspaces"></nav>
+    </div>
+    <div class="mod center">
+      <span id="wintitle" class="chip"></span>
+      <span id="winctl">
+        <button id="btn-float" class="chip" title="Toggle fullscreen (Alt+F)">⛶</button>
+        <button id="btn-close" class="chip" title="Close window (Alt+Q)">✕</button>
+      </span>
+    </div>
+    <div class="mod right">
+      <button id="keys-btn" class="chip" title="Keybinds">⌨ binds</button>
+      <span id="coi" class="chip"></span>
+      <span id="cpu" class="chip"></span>
+      <span id="clock" class="chip"></span>
+    </div>
+  </header>
+  <main id="tiles"></main>
+  <div id="empty">
+    <pre class="fetch"></pre>
+  </div>
+</div>
+
+<div id="launcher" hidden>
+  <div class="box" role="dialog" aria-label="Launcher">
+    <input id="launcher-q" placeholder="drun" autocomplete="off" spellcheck="false">
+    <ul id="launcher-list"></ul>
+  </div>
+</div>
+
+<div id="binds" hidden>
+  <div class="box">
+    <h2>keybinds <span class="dim">(Alt stands in for Super, which browsers can't capture)</span></h2>
+    <table>
+      <tr><td><kbd>Alt</kbd> <kbd>D</kbd></td><td>launcher</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>Q</kbd></td><td>close the active window</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>F</kbd></td><td>fullscreen</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>←↑→↓</kbd> / <kbd>H J K L</kbd></td><td>move focus</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>←→</kbd></td><td>swap with the previous / next window</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>1</kbd>…<kbd>5</kbd></td><td>switch workspace</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>1</kbd>…<kbd>5</kbd></td><td>move the window to a workspace</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>Enter</kbd></td><td>terminal (TraSH)</td></tr>
+    </table>
+    <p class="dim">Keybinds work while an app has focus too, except inside Cub3D while the mouse is captured.</p>
+  </div>
+</div>
+
+<template id="tpl-about">
+  <div class="about">
+    <section class="hero">
+      <pre class="fetch"></pre>
+      <p class="tagline"></p>
+      <p class="dim">Everything below runs <b>live in this tab</b>: C and Zig compiled to WebAssembly, real threads on Web Workers,
+        and an x86 PC emulator booting a kernel and a Linux userland. Nothing is a recording.</p>
+    </section>
+    <section class="cards"></section>
+    <section class="dim foot">
+      Built with Emscripten, v86, xterm.js and a canvas re-implementation of MiniLibX.
+      <kbd>Alt</kbd> <kbd>D</kbd> opens the launcher, the ⌨ button in the bar lists the other binds.
+    </section>
+  </div>
+</template>
+
+<script src="desktop.js"></script>
+</body>
+</html>

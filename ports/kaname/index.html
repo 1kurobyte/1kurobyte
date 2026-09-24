@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaname — x86 kernel in the browser</title>
+<style>
+  :root { --bg:#0b0d10; --panel:#14171c; --line:#262b33; --fg:#d7dde5; --dim:#8a94a3; --acc:#ff9e64; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header b { color:var(--acc); }
+  select, button { font:inherit; background:#1b1f26; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
+  button:hover, select:hover { border-color:var(--acc); }
+  .dim { color:var(--dim); }
+  main { flex:1; min-height:0; display:grid; grid-template-columns: 1fr minmax(260px, 32%); }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 30%; } }
+  #screen-wrap { display:grid; place-items:center; overflow:hidden; background:#000; position:relative; }
+  #screen { transform-origin: center; }
+  #screen > div { white-space:pre; font:16px/16px monospace; color:#aaa; }
+  #screen > canvas { display:none; image-rendering: pixelated; }
+  #serial { border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  #serial h2 { margin:0; padding:6px 10px; font-size:12px; font-weight:normal; color:var(--dim); border-bottom:1px solid var(--line); }
+  #log { flex:1; margin:0; padding:8px 10px; overflow:auto; white-space:pre-wrap; font-size:12px; color:#b5e8b0; }
+  #hint { position:absolute; bottom:8px; left:0; right:0; text-align:center; color:var(--dim); font-size:12px; pointer-events:none; }
+</style>
+</head>
+<body>
+<header>
+  <b>Kaname 要</b><span class="dim">x86 kernel in Zig · booted by GRUB inside v86 (x86 → WebAssembly JIT)</span>
+  <span style="flex:1"></span>
+  <select id="image" title="Kernel image">
+    <option value="kaname-full.iso">full: VBE framebuffer + 3D logo</option>
+    <option value="kaname.iso">default: VGA text mode</option>
+  </select>
+  <button id="reboot">⟲ Reboot</button>
+</header>
+<main>
+  <div id="screen-wrap">
+    <div id="screen"><div></div><canvas></canvas></div>
+    <div id="hint">click the screen, then type — try <code>help</code>, <code>cpuinfo</code>, <code>stack</code>, <code>panic</code></div>
+  </div>
+  <section id="serial"><h2>COM1 serial console</h2><pre id="log"></pre></section>
+</main>
+<script src="v86/libv86.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  if (params.get('image')) $('image').value = params.get('image');
+  let emulator = null;
+
+  function fit() {
+    const wrap = $('screen-wrap'), scr = $('screen');
+    const el = [...scr.children].find((e) => getComputedStyle(e).display !== 'none' && e.offsetWidth);
+    if (!el) return;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const s = Math.min(wrap.clientWidth / w, wrap.clientHeight / h, 2) * 0.98;
+    scr.style.transform = `scale(${s})`;
+  }
+  new ResizeObserver(fit).observe($('screen-wrap'));
+
+  function boot() {
+    if (emulator) emulator.destroy();
+    $('log').textContent = '';
+    emulator = new V86({
+      wasm_path: 'v86/v86.wasm',
+      bios: { url: 'v86/seabios.bin' },
+      vga_bios: { url: 'v86/vgabios.bin' },
+      cdrom: { url: $('image').value },
+      memory_size: 128 * 1024 * 1024,
+      vga_memory_size: 16 * 1024 * 1024,
+      screen_container: $('screen'),
+      autostart: true,
+      disable_speaker: true,
+    });
+    let line = '';
+    emulator.add_listener('serial0-output-byte', (b) => {
+      const c = String.fromCharCode(b);
+      if (c === '\r') return;
+      const log = $('log');
+      log.textContent += c;
+      if (log.textContent.length > 200000) log.textContent = log.textContent.slice(-100000);
+      log.scrollTop = log.scrollHeight;
+    });
+    emulator.add_listener('screen-set-size', () => requestAnimationFrame(fit));
+  }
+  $('reboot').onclick = boot;
+  $('image').onchange = boot;
+  $('screen-wrap').addEventListener('click', () => { window.focus(); });
+  boot();
+</script>
+</body>
+</html>

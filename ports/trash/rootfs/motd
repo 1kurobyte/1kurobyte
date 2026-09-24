@@ -1,0 +1,9 @@
+
+  \033[1;36mTraSH\033[0m - \033[2mThe Trash Shell, running on a real (tiny) Linux kernel\033[0m
+  \033[2mi386 Linux + busybox, emulated by v86 in WebAssembly. Nothing is simulated:
+  fork, execve, pipes, signals and redirections are the kernel's own.\033[0m
+
+  Try:  \033[33mcat README\033[0m     \033[33mls -l | grep sh | wc -l\033[0m     \033[33mexport X=42; echo "$X"\033[0m
+        \033[33mcat < README | tr a-z A-Z > /tmp/up && head -3 /tmp/up\033[0m
+        \033[33msleep 5\033[0m then \033[33mCtrl-C\033[0m      \033[33mhelp\033[0m      \033[33mtype cd ls\033[0m      \033[33mtrash -d\033[0m (bytecode)
+

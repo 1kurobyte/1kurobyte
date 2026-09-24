@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FdF — WebAssembly</title>
+<script src="coi-serviceworker.js"></script>
+<style>
+  :root { --bg:#0b0d10; --panel:#14171c; --line:#262b33; --fg:#d7dde5; --dim:#8a94a3; --acc:#7cc4ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; gap:12px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header b { color:var(--acc); }
+  select, button { font:inherit; background:#1b1f26; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
+  button { cursor:pointer; } button:hover { border-color:var(--acc); }
+  .dim { color:var(--dim); }
+  main { flex:1; min-height:0; display:grid; place-items:center; position:relative; }
+  canvas { max-width:100%; max-height:100%; image-rendering:auto; outline:none; background:#000; display:none; }
+  #start { text-align:center; max-width:560px; padding:24px; }
+  #drop { margin-top:14px; border:1px dashed var(--line); border-radius:10px; padding:18px; color:var(--dim); }
+  #drop.over { border-color:var(--acc); color:var(--fg); }
+  #status { position:absolute; bottom:10px; left:12px; color:var(--dim); }
+  kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; background:#1b1f26; }
+  .keys { color:var(--dim); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <b>FdF</b><span class="dim">wireframe renderer · C → WebAssembly</span>
+  <span style="flex:1"></span>
+  <span class="keys"><kbd>WASD</kbd> move · <kbd>Space</kbd>/<kbd>C</kbd> up/down · arrows rotate · drag to orbit · wheel zoom · <kbd>M</kbd> projection</span>
+</header>
+<main>
+  <div id="start">
+    <p>Pick a height map and launch the renderer.</p>
+    <p><select id="map"></select> <button id="go">Launch ▶</button></p>
+    <div id="drop">…or drop your own <code>.fdf</code> file here</div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <div id="status"></div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const status = (t) => { $('status').textContent = t || ''; };
+  let custom = null;
+
+  fetch('maps.json').then((r) => r.json()).then((maps) => {
+    for (const m of maps) $('map').add(new Option(m, m));
+    const nice = 'MGDS_HIMALAYA_OCEAN0_M';
+    $('map').value = params.get('map') || (maps.includes(nice) ? nice : maps[0]);
+    if (params.has('autostart')) launch();
+  });
+
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach((t) => addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  addEventListener('drop', async (e) => {
+    const f = e.dataTransfer.files[0];
+    if (!f || window.Module) return;
+    custom = { name: f.name.replace(/[^\w.-]/g, '_'), data: new Uint8Array(await f.arrayBuffer()) };
+    launch();
+  });
+  $('go').onclick = launch;
+
+  // FdF starts at a fixed scale (0.5) that suits no map in particular; zoom
+  // in to roughly fit the map, exactly as if the user scrolled the wheel.
+  function zoomToFit(path, w, h) {
+    let cols = 0, rows = 0;
+    try {
+      const lines = new TextDecoder().decode(Module.FS.readFile(path)).split('\n').filter((l) => l.trim());
+      rows = lines.length;
+      cols = lines[0].trim().split(/\s+/).length;
+    } catch (e) { return; }
+    const target = 0.7 * Math.min(w, h * 1.4) / (1.2 * Math.max(cols, rows, 1));
+    const steps = Math.max(0, Math.min(40, Math.round(Math.log(target / 0.5) / Math.log(1.25))));
+    for (let i = 0; i < steps; i++) {
+      Module.mlx.push(4, 4, w / 2, h / 2); // ButtonPress, wheel up
+      Module.mlx.push(5, 4, w / 2, h / 2); // ButtonRelease
+    }
+    // Then tilt the camera: hold Up (pitch) and Left (yaw) for a fixed
+    // number of rendered frames, each rotating by ROTATION_STEP.
+    holdKey(0xff52, 6);
+    holdKey(0xff51, 5);
+  }
+
+  function holdKey(keysym, frames) {
+    const mlx = Module.mlx, until = mlx.frames + frames;
+    mlx.push(2, keysym, 0, 0);
+    (function wait() {
+      if (mlx.frames >= until) mlx.push(3, keysym, 0, 0);
+      else requestAnimationFrame(wait);
+    })();
+  }
+
+  function launch() {
+    if (window.Module) return;
+    $('start').style.display = 'none';
+    const canvas = $('canvas');
+    const path = custom ? '/data/' + custom.name : '/data/' + $('map').value + '.fdf';
+    status('loading…');
+    window.Module = {
+      canvas,
+      print: (t) => console.log(t),
+      printErr: (t) => console.warn(t),
+      setStatus: (t) => status(t),
+      onWindow: (w, h) => { canvas.style.display = 'block'; canvas.focus(); status(''); zoomToFit(path, w, h); },
+      onRuntimeInitialized() {
+        if (custom) Module.FS.writeFile(path, custom.data);
+        status('starting ' + path.split('/').pop() + '…');
+        Module.callMain([path]);
+      },
+      onExit: (code) => status('program exited with status ' + code + ' — reload to restart'),
+    };
+    if (!crossOriginIsolated) { status('This page needs cross-origin isolation (SharedArrayBuffer); reloading…'); }
+    const s = document.createElement('script');
+    s.src = 'fdf.js';
+    document.body.appendChild(s);
+  }
+</script>
+</body>
+</html>

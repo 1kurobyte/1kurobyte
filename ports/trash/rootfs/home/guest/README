@@ -1,0 +1,10 @@
+TraSH (TraSH Replaces Another SHell) is a POSIX-style shell written in C.
+
+Instead of walking an abstract syntax tree, every command line is compiled
+ahead of time to a small bytecode which a VM then executes. Run `trash -d`
+to start a session that prints the bytecode of each command before running it.
+
+Builtins: cd echo env exec exit export false logout pwd readonly return set
+          true type unset help
+Features: pipelines, && ||, ( subshells ), redirections < > >> and <<,
+          $VAR and $? expansion, single and double quotes.

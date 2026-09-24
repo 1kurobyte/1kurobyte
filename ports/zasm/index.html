@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zasm playground</title>
+<style>
+  :root { --bg:#0b0d10; --panel:#14171c; --line:#262b33; --fg:#d7dde5; --dim:#8a94a3; --acc:#bb9af7;
+          --kw:#bb9af7; --reg:#7dcfff; --num:#ff9e64; --str:#9ece6a; --com:#5c6370; --err:#f7768e; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header b { color:var(--acc); font-size:14px; }
+  select, button, input { font:inherit; background:#1b1f26; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
+  button { cursor:pointer; } button:hover, select:hover { border-color:var(--acc); }
+  button.primary { background:#2a2140; border-color:#4b3b73; }
+  button:disabled { opacity:.5; cursor:default; }
+  .dim { color:var(--dim); }
+  main { flex:1; min-height:0; display:grid; grid-template-columns: minmax(300px, 42%) 1fr; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: 45% 55%; } }
+  /* editor: a transparent textarea over a highlighted <pre> */
+  #editor { position:relative; border-right:1px solid var(--line); overflow:hidden; display:flex; }
+  #gutter { padding:10px 8px 10px 10px; text-align:right; color:#3b4250; user-select:none; white-space:pre; background:#0e1014; }
+  #code { position:relative; flex:1; overflow:auto; }
+  #hl, #src { margin:0; padding:10px 12px; font:inherit; white-space:pre; tab-size:4; min-height:100%; }
+  #hl { pointer-events:none; }
+  #src { position:absolute; inset:0; width:100%; height:100%; resize:none; border:0; outline:none; background:transparent;
+         color:transparent; caret-color:var(--fg); overflow:hidden; }
+  .k { color:var(--kw); } .r { color:var(--reg); } .n { color:var(--num); } .s { color:var(--str); } .c { color:var(--com); font-style:italic; }
+  #out { display:flex; flex-direction:column; min-height:0; min-width:0; }
+  #tabs { display:flex; gap:2px; padding:6px 8px 0; border-bottom:1px solid var(--line); background:var(--panel); overflow-x:auto; }
+  #tabs button { border-radius:6px 6px 0 0; border-bottom:none; background:transparent; color:var(--dim); white-space:nowrap; }
+  #tabs button.on { background:var(--bg); color:var(--fg); border-color:var(--line); }
+  .pane { display:none; flex:1; overflow:auto; padding:10px 14px; white-space:pre; }
+  .pane.on { display:block; }
+  .status { margin:10px 0 0; padding:6px 10px; border-radius:6px; background:#1b1f26; display:inline-block; }
+  .ok { color:var(--str); } .bad { color:var(--err); }
+  .fd2 { color:var(--err); }
+  table { border-collapse:collapse; } td { padding:0 14px 0 0; vertical-align:top; }
+  td.addr { color:var(--dim); } td.bytes { color:#6b7383; } td.chg { color:var(--reg); }
+  .hx span { border-radius:2px; }
+  .legend { white-space:normal; }
+  .legend span { display:inline-block; padding:0 6px; margin:0 6px 4px 0; border-radius:3px; color:#0b0d10; }
+  .ansi-b { font-weight:bold; } .ansi-91 { color:var(--err); } .ansi-93 { color:#e0af68; } .ansi-94 { color:#7aa2f7; } .ansi-90 { color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <b>zasm</b><span class="dim">assembler (C → WebAssembly) · output runs in an x86-64 Linux sandbox</span>
+  <span style="flex:1"></span>
+  <select id="examples" title="Examples"></select>
+  <input id="stdin" placeholder="stdin" size="10" title="Bytes available to read(0, ...)">
+  <button id="run" class="primary" title="Ctrl+Enter">▶ Assemble &amp; run</button>
+  <button id="dl" disabled>⬇ ELF</button>
+</header>
+<main>
+  <section id="editor">
+    <div id="gutter">1</div>
+    <div id="code"><pre id="hl"></pre><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea></div>
+  </section>
+  <section id="out">
+    <nav id="tabs"></nav>
+    <div class="pane" id="p-run"></div>
+    <div class="pane" id="p-strace"></div>
+    <div class="pane" id="p-trace"></div>
+    <div class="pane" id="p-disasm"></div>
+    <div class="pane" id="p-hex"></div>
+    <div class="pane" id="p-asm"></div>
+  </section>
+</main>
+<script src="x86.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const hx = (n, w = 2) => n.toString(16).padStart(w, '0');
+  const EXAMPLES = ['hello', 'stderr', 'exit-code', 'typo'];
+  const TABS = [['run', 'Output'], ['strace', 'Syscalls'], ['trace', 'Trace'], ['disasm', 'Disassembly'], ['hex', 'ELF hexdump'], ['asm', 'Assembler log']];
+  let syscallNames = {}, lastElf = null, worker = null;
+
+  // --- tabs -----------------------------------------------------------------
+  for (const [id, label] of TABS) {
+    const b = document.createElement('button');
+    b.textContent = label; b.dataset.tab = id;
+    b.onclick = () => show(id);
+    $('tabs').appendChild(b);
+  }
+  function show(id) {
+    for (const b of $('tabs').children) b.classList.toggle('on', b.dataset.tab === id);
+    for (const [t] of TABS) $('p-' + t).classList.toggle('on', t === id);
+  }
+  show('run');
+
+  // --- editor ------------------------------------------------------------------
+  const KW = /\b(syscall|pushstr|mov|xor|push|pop|jmp|call|ret|lea|add|sub|cmp)\b/;
+  const REG = /\b([re]?[abcd]x|[abcd][lh]|[re]?(si|di|sp|bp)|(si|di|sp|bp)l|r(8|9|1[0-5])[dwb]?)\b/;
+  function highlight(src) {
+    return src.split('\n').map((line) => {
+      let out = '', rest = line;
+      const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*"?)|(\b0x[0-9a-fA-F]+\b|\b\d+\b)|([A-Za-z_]\w*)/;
+      while (rest.length) {
+        const m = rest.match(re);
+        if (!m) { out += esc(rest); break; }
+        out += esc(rest.slice(0, m.index));
+        const t = m[0];
+        if (m[1]) out += `<span class="c">${esc(t)}</span>`;
+        else if (m[2]) out += `<span class="s">${esc(t)}</span>`;
+        else if (m[3]) out += `<span class="n">${t}</span>`;
+        else if (KW.test(t) && KW.exec(t)[0] === t) out += `<span class="k">${t}</span>`;
+        else if (REG.test(t) && REG.exec(t)[0] === t) out += `<span class="r">${t}</span>`;
+        else out += esc(t);
+        rest = rest.slice(m.index + t.length);
+      }
+      return out;
+    }).join('\n') + '\n';
+  }
+  const src = $('src');
+  function refresh() {
+    $('hl').innerHTML = highlight(src.value);
+    $('gutter').textContent = src.value.split('\n').map((_, i) => i + 1).join('\n');
+    src.style.height = $('hl').scrollHeight + 'px';
+    src.style.width = $('hl').scrollWidth + 'px';
+  }
+  src.addEventListener('input', refresh);
+  $('code').addEventListener('scroll', () => { $('gutter').scrollTop = $('code').scrollTop; });
+  src.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '    '); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); assembleAndRun(); }
+  });
+
+  async function loadExample(name) {
+    src.value = await (await fetch(`examples/${name}.zasm`)).text();
+    refresh();
+  }
+  for (const n of EXAMPLES) $('examples').add(new Option(n + '.zasm', n));
+  $('examples').onchange = () => loadExample($('examples').value).then(assembleAndRun);
+
+  // --- assembler (in a worker) -----------------------------------------------------
+  function assemble(source) {
+    return new Promise((resolve) => {
+      if (worker) worker.terminate();
+      worker = new Worker('worker.js');
+      const timer = setTimeout(() => {
+        worker.terminate(); worker = null;
+        resolve({ stdout: '', stderr: 'zasm did not finish within 5 seconds (killed)\n', status: -1, elf: null });
+      }, 5000);
+      worker.onmessage = ({ data }) => { clearTimeout(timer); resolve(data); };
+      worker.onerror = (e) => { clearTimeout(timer); resolve({ stdout: '', stderr: 'zasm crashed: ' + e.message + '\n', status: -1, elf: null }); };
+      worker.postMessage({ source, name: 'program.zasm' });
+    });
+  }
+
+  function ansi(text) {
+    let open = 0;
+    const html = esc(text).replace(/\x1b\[([\d;]*)m/g, (_, codes) => {
+      let s = '';
+      for (const c of codes.split(';')) {
+        if (c === '0' || c === '') { s += '</span>'.repeat(open); open = 0; }
+        else { s += `<span class="${c === '1' ? 'ansi-b' : 'ansi-' + c}">`; open++; }
+      }
+      return s;
+    });
+    return html + '</span>'.repeat(open);
+  }
+
+  async function assembleAndRun() {
+    $('run').disabled = true;
+    const res = await assemble(src.value);
+    $('run').disabled = false;
+    $('p-asm').innerHTML = `<span class="dim">$ zasm program.zasm</span>\n` + ansi(res.stdout + res.stderr) +
+      `\n<span class="dim">exit status ${res.status}</span>`;
+    lastElf = res.elf;
+    $('dl').disabled = !lastElf;
+    const diagnostics = /Syntax Error|crashed|killed/.test(res.stderr);
+    if (!lastElf) {
+      for (const t of ['run', 'strace', 'trace', 'disasm', 'hex']) $('p-' + t).innerHTML = '<span class="dim">no executable produced</span>';
+      show('asm');
+      return;
+    }
+    renderHex(lastElf);
+    renderDisasm(lastElf);
+    let run;
+    try {
+      run = X86.run(lastElf, { stdin: $('stdin').value, syscallNames, maxSteps: 1e6 });
+    } catch (e) {
+      $('p-run').innerHTML = `<span class="bad">cannot execute: ${esc(e.message)}</span>`;
+      show('run'); return;
+    }
+    renderRun(run, diagnostics);
+    $('p-strace').textContent = run.strace.join('\n') || '(no system calls)';
+    renderTrace(run);
+    show(diagnostics ? 'asm' : 'run');
+  }
+
+  function renderRun(run, diagnostics) {
+    const dec = new TextDecoder();
+    let html = '<span class="dim">$ ./program</span>\n';
+    for (const o of run.output) html += `<span class="${o.fd === 2 ? 'fd2' : ''}">${esc(dec.decode(o.bytes))}</span>`;
+    const e = run.exit;
+    html += '\n<span class="status ' + (e.code === 0 ? 'ok' : 'bad') + '">' +
+      (e.signal ? `killed by ${e.signal}: ${esc(e.reason)}` : `exit status ${e.code}`) +
+      `</span> <span class="dim">· ${run.steps} instruction${run.steps === 1 ? '' : 's'}</span>`;
+    if (diagnostics) html += '\n\n<span class="bad">zasm reported errors — see the Assembler log tab.</span>';
+    html += '\n\n<span class="dim">registers at exit</span>\n' +
+      Object.entries(run.regs).map(([k, v], i) => `${k.padStart(3)} ${v}` + (i % 3 === 2 ? '\n' : '   ')).join('');
+    $('p-run').innerHTML = html;
+  }
+
+  function renderTrace(run) {
+    const rows = run.trace.map((t) => `<tr><td class="addr">${hx(t.rip, 6)}</td><td class="bytes">${t.bytes.map((b) => hx(b)).join(' ')}</td>` +
+      `<td>${esc(t.text)}</td><td class="chg">${t.changes.join(' ')}</td></tr>`).join('');
+    $('p-trace').innerHTML = `<table>${rows}</table>` + (run.steps > run.trace.length ? `\n<span class="dim">… ${run.steps - run.trace.length} more</span>` : '');
+  }
+
+  function renderDisasm(elf) {
+    let rows;
+    try { rows = X86.disassemble(elf); } catch (e) { $('p-disasm').textContent = e.message; return; }
+    $('p-disasm').innerHTML = '<table>' + rows.map((r) => `<tr><td class="addr">${hx(r.rip, 6)}</td>` +
+      `<td class="bytes">${r.bytes.map((b) => hx(b)).join(' ')}</td><td>${esc(r.text)}</td></tr>`).join('') + '</table>';
+  }
+
+  // Annotated hexdump: colour every byte by the ELF structure it belongs to.
+  function renderHex(elf) {
+    const dv = new DataView(elf.buffer, elf.byteOffset, elf.byteLength);
+    const regions = [];
+    const add = (start, len, name, color) => { if (len > 0 && start < elf.length) regions.push({ start, end: Math.min(start + len, elf.length), name, color }); };
+    const COLORS = ['#7aa2f7', '#bb9af7', '#e0af68', '#9ece6a', '#7dcfff', '#f7768e', '#ff9e64'];
+    try {
+      add(0, 64, 'ELF header', COLORS[0]);
+      const phoff = Number(dv.getBigUint64(32, true)), phnum = dv.getUint16(56, true);
+      add(phoff, phnum * dv.getUint16(54, true), 'program headers', COLORS[1]);
+      const shoff = Number(dv.getBigUint64(40, true)), shnum = dv.getUint16(60, true), shent = dv.getUint16(58, true);
+      add(shoff, shnum * shent, 'section headers', COLORS[2]);
+      const shstrndx = dv.getUint16(62, true);
+      const strOff = shstrndx < shnum ? Number(dv.getBigUint64(shoff + shstrndx * shent + 24, true)) : 0;
+      for (let i = 1; i < shnum; i++) {
+        const o = shoff + i * shent;
+        if (o + shent > elf.length) break;
+        let name = '';
+        for (let j = strOff + dv.getUint32(o, true); j < elf.length && elf[j]; j++) name += String.fromCharCode(elf[j]);
+        add(Number(dv.getBigUint64(o + 24, true)), Number(dv.getBigUint64(o + 32, true)), name || `section ${i}`, COLORS[3 + (i % 4)]);
+      }
+    } catch (e) { /* malformed: show raw bytes */ }
+    const at = (i) => regions.find((r) => i >= r.start && i < r.end);
+    let html = '<div class="legend">' + regions.map((r) => `<span style="background:${r.color}">${esc(r.name)} ${hx(r.start, 3)}–${hx(r.end, 3)}</span>`).join('') + '</div>';
+    for (let off = 0; off < elf.length; off += 16) {
+      const chunk = elf.subarray(off, off + 16);
+      if (off > 0x40 && chunk.every((b) => b === 0) && off + 16 < elf.length && elf.subarray(off + 16, off + 32).every((b) => b === 0) && !regions.some((r) => r.start > off && r.start < off + 32)) {
+        if (!html.endsWith('*\n')) html += '*\n';
+        continue;
+      }
+      let line = `<span class="dim">${hx(off, 8)}</span>  `;
+      let ascii = '';
+      chunk.forEach((b, j) => {
+        const r = at(off + j);
+        line += `<span style="color:${r ? r.color : 'var(--dim)'}">${hx(b)}</span>` + (j === 7 ? '  ' : ' ');
+        ascii += b >= 32 && b < 127 ? esc(String.fromCharCode(b)) : '.';
+      });
+      html += line.padEnd(line.length + (16 - chunk.length) * 3) + ' <span class="dim">|' + ascii + '|</span>\n';
+    }
+    $('p-hex').innerHTML = '<div class="hx">' + html + '</div>';
+  }
+
+  $('dl').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lastElf], { type: 'application/octet-stream' }));
+    a.download = 'program';
+    a.click();
+  };
+  $('run').onclick = assembleAndRun;
+
+  fetch('syscalls.json').then((r) => r.json()).then((j) => { syscallNames = j; });
+  const first = new URLSearchParams(location.search).get('example') || 'hello';
+  $('examples').value = first;
+  loadExample(first).then(() => setTimeout(assembleAndRun, 100));
+</script>
+</body>
+</html>

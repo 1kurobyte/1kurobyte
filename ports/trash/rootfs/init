@@ -1,0 +1,17 @@
+#!/bin/busybox sh
+# PID 1 of the browser demo: mount the usual pseudo filesystems and keep a
+# TraSH session running on the serial console (which the page shows with
+# xterm.js). `cols` and `rows` come from the kernel command line.
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mount -t tmpfs tmp /tmp
+hostname trash
+export HOME=/home/guest PATH=/bin:/usr/bin TERM=xterm-256color USER=guest SHELL=/bin/trash
+stty -F /dev/ttyS0 rows "${rows:-30}" cols "${cols:-100}" 2>/dev/null
+cd "$HOME"
+printf '%b' "$(cat /etc/motd)"; echo
+while true; do
+  setsid cttyhack /bin/trash
+  printf '\n\033[2m[trash exited with status %s, starting a new session]\033[0m\n\n' "$?"
+done

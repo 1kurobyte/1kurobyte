@@ -1,0 +1,6 @@
+// Two streams: fd 1 is stdout, fd 2 is stderr.
+pushstr "stdout says hi"
+syscall write(1, rsp, 14)
+pushstr "stderr says hi"
+syscall write(2, rsp, 14)
+syscall exit_group(1)

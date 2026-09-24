@@ -1,0 +1,4 @@
+// zasm reports errors with the offending token underlined.
+pushstr "oops"
+syscall wirte(1, rsp, 4)
+syscall exit(0)
