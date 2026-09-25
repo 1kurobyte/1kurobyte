@@ -19,7 +19,9 @@
   @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 30%; } }
   #screen-wrap { display:grid; place-items:center; overflow:hidden; background:#000; position:relative; }
   #screen { transform-origin: center; }
-  #screen > div { white-space:pre; font:16px/16px monospace; color:#aaa; }
+  /* v86 text mode: one div per row. Rows must be taller than the glyphs,
+     or each row's background paints over the top of the row above. */
+  #screen > div { white-space:pre; font:15px/19px ui-monospace, Menlo, Consolas, monospace; color:#aaa; }
   #screen > canvas { display:none; image-rendering: pixelated; }
   #serial { border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
   #serial h2 { margin:0; padding:6px 10px; font-size:12px; font-weight:normal; color:var(--dim); border-bottom:1px solid var(--line); }

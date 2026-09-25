@@ -7,8 +7,8 @@
 #
 # Needs (Debian/Ubuntu names): gcc-multilib libreadline-dev:i386
 # libncurses-dev:i386 busybox-static:i386 flex bison bc libelf-dev cpio npm
-# curl, and a Linux source tree: KERNEL_SRC=<dir or tarball>, otherwise the
-# linux-source package's tarball or a kernel.org download is used.
+# curl. The kernel is downloaded from kernel.org (KERNEL_VERSION), unless
+# KERNEL_SRC=<dir or tarball> points at a source tree.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,7 +16,8 @@ WEB="$ROOT/web"
 OUT="${OUT:-$WEB/dist}"
 WORK="${WORK:-$ROOT/build/web}"
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
-KERNEL_VERSION="${KERNEL_VERSION:-6.6.52}"
+# 6.12.48+ builds with GCC 15 (C23 by default); 6.6.52 does not.
+KERNEL_VERSION="${KERNEL_VERSION:-6.12.48}"
 V86_VERSION="${V86_VERSION:-0.5.462}"
 V86_COMMIT="${V86_COMMIT:-5f9a90f}"
 XTERM_VERSION="${XTERM_VERSION:-5.5.0}"
@@ -28,9 +29,6 @@ mkdir -p "$OUT" "$WORK"
 # --- Linux kernel ------------------------------------------------------------
 kernel_tree() {
   local src="${KERNEL_SRC:-}"
-  if [[ -z "$src" ]]; then
-    src=$(ls /usr/src/linux-source-*.tar.* 2>/dev/null | head -1 || true)
-  fi
   if [[ -z "$src" ]]; then
     src="$WORK/linux-$KERNEL_VERSION.tar.xz"
     [[ -f "$src" ]] || curl -fL -o "$src" \
