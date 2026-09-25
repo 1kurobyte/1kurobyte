@@ -6,8 +6,10 @@ boots it in [v86](https://github.com/copy/v86), an x86 PC emulator that JITs
 to WebAssembly:
 
 - a ~1.6 MB i386 kernel: `tinyconfig` + `linux.config`;
-- an initramfs with a static i386 TraSH (glibc + readline), busybox, and
-  `rootfs/init`, which keeps a TraSH session running on the serial console;
+- an initramfs with a static i386 TraSH, busybox, and `rootfs/init`, which
+  keeps a TraSH session running on the serial console. The userland (ncurses,
+  readline, TraSH, busybox) is cross-compiled against musl with `zig cc`
+  from pinned, checksummed releases, so no 32-bit host libraries are needed;
 - a page that connects that serial console to xterm.js.
 
 ```sh

@@ -30,12 +30,10 @@ jobs:
 
       - name: Install system packages
         run: |
-          sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             grub-pc-bin grub-common xorriso mtools \
-            gcc-multilib libreadline-dev:i386 libncurses-dev:i386 busybox-static:i386 \
-            flex bison bc libelf-dev libssl-dev cpio file
+            flex bison bc libelf-dev libssl-dev cpio file ncurses-bin
 
       - name: Install Zig
         run: |
@@ -48,6 +46,12 @@ jobs:
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
           "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
           "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - uses: actions/cache@v4
+        with:
+          path: .work/downloads
+          key: downloads-${{ hashFiles('ports/*/build.sh') }}
+          restore-keys: downloads-
 
       - name: Build all projects
         run: |

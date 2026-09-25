@@ -8,11 +8,11 @@
 #                                    # (their web/ directory is replaced)
 #
 # Project repositories and refs are listed in projects.tsv; the projects are
-# built unmodified, with ports/<id>/ copied in as their web/ directory. Requirements are
-# the union of the projects' own (see .github/workflows/deploy.yml for a
-# complete, working Ubuntu setup): emsdk (emcc on PATH), zig, grub-mkrescue,
-# xorriso, mtools, gcc-multilib with i386 readline/ncurses, busybox-static:i386,
-# kernel build deps, npm, curl.
+# built unmodified, with ports/<id>/ copied in as their web/ directory.
+# Requirements (see .github/workflows/deploy.yml for a working Ubuntu setup):
+# emsdk (emcc on PATH), zig, a host C compiler, make, grub-mkrescue (BIOS
+# modules), xorriso, mtools, kernel build deps (flex, bison, bc, libelf),
+# cpio, tic, npm, curl. No 32-bit host libraries are needed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -20,7 +20,9 @@ SITE="${SITE:-$ROOT/site}"
 WORK="${WORK:-$ROOT/.work}"
 ONLY=("$@")
 
-mkdir -p "$SITE/apps" "$WORK"
+mkdir -p "$SITE/apps" "$WORK/downloads"
+# Source tarballs fetched by the ports (kernel, ncurses, ...) survive rebuilds.
+export DL_DIR="${DL_DIR:-$WORK/downloads}"
 cp "$ROOT"/{index.html,desktop.css,desktop.js,apps.json,coi-serviceworker.js,serve.py} "$SITE/"
 touch "$SITE/.nojekyll"
 
