@@ -28,9 +28,9 @@
 
   // --- neofetch-style summary ---------------------------------------------------
   function fetchBlock() {
-    const art = [
+    const logo = [
       '      /\\      ', '     /  \\     ', '    / /\\ \\    ', '   / /  \\ \\   ',
-      '  / /    \\ \\  ', ' / / ____\\ \\ ', '/_/ /_____\\_\\',
+      '  / /    \\ \\  ', ' / / ____ \\ \\ ', '/_/ /____\\ \\_\\',
     ];
     const kernels = 'kaname (Zig, x86) · Linux 6.x in v86';
     const info = [
@@ -45,6 +45,7 @@
       '',
       cfg.apps.map((a) => `<span class="sw" style="background:${a.color}"></span>`).join(''),
     ];
+    const art = [...Array(Math.max(0, (info.length - logo.length) >> 1)).fill(''), ...logo];
     return art.map((l, i) => `<span class="l">${l.padEnd(14).replace(/</g, '&lt;')}</span>   ${info[i] || ''}`).concat(info.slice(art.length).map((l) => ' '.repeat(17) + l)).join('\n');
   }
 

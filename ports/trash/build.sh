@@ -144,7 +144,7 @@ BBSRC="$(unpack "$DL/busybox-$BUSYBOX_VERSION.tar.bz2")"
 BUSYBOX="$BBSRC/busybox"
 
 for bin in "$SH/minishell" "$BUSYBOX"; do
-  file "$bin" | grep -q 'Intel 80386.*statically linked' ||
+  file "$bin" | grep -qE 'Intel (80386|i386).*statically linked' ||
     { echo "$bin is not a static i386 executable" >&2; exit 1; }
 done
 
